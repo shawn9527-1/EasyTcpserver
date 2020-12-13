@@ -29,7 +29,7 @@ public:
 
 	virtual ~EasyTcpServer()
 	{
-
+		Close();
 	}
 
 	//init
@@ -49,6 +49,8 @@ public:
 		}
 
 		_sock = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+
+		printf("create socket:%d, success!\n", _sock);
 	}
 
 	//bind
@@ -64,6 +66,8 @@ public:
 			return -1;
 		}
 
+		printf("bind success!\n");
+
 		return 0;
 	}
 	
@@ -75,6 +79,8 @@ public:
 			printf("listen error\n");
 			return -1;
 		}
+		
+		printf("listen success!\n");
 
 		return 0;
 	}
@@ -86,16 +92,12 @@ public:
 		int nAddrLen = sizeof(sockaddr_in);
 		client = accept(_sock, (sockaddr *)&clientAddr, &nAddrLen);
 
-//		printf("accept:%d, addr:%d, port:%d\n", client, inet_a clientAddr.sin_addr.S_un.S_addr)
+		printf("accept:%d, port:%d\n", client, clientAddr.sin_port);
 
-		g_clients.push_back(client);
+		//g_clients.push_back(client);
 
-		for (int n = g_clients.size() - 1; n >= 0; n--)
-		{
-			NewUserJoin join;
-			join.sock = client;
-			SendData(g_clients[n], &join);
-		}		
+		NewUserJoin newUser;
+		SendDataToAll(&newUser);
 
 		return client;
 	}
@@ -114,24 +116,46 @@ public:
 		fd_set fdRead;
 		FD_ZERO(&fdRead);
 		FD_SET(_sock, &fdRead);
+		SOCKET maxSock = _sock;
 
 		for (int n = (int)g_clients.size() - 1; n >= 0; n--)
 		{
 			FD_SET(g_clients[n], &fdRead);
+			if (maxSock < g_clients[n])
+			{
+				maxSock = g_clients[n];
+			}
 		}
 
-		timeval t = { 0, 500 };
-		int ret = select(_sock + 1, &fdRead, nullptr, nullptr, &t);
+		timeval t = { 1, 0 };
+		int ret = select(maxSock + 1, &fdRead, nullptr, nullptr, &t);
 		if (ret < 0)
 		{
 			printf("select error\n");
+			Close();
 			return false;
 		}
 
 		if (FD_ISSET(_sock, &fdRead))
 		{
 			FD_CLR(_sock, &fdRead);
-			Accept();
+			SOCKET client = Accept();
+			g_clients.push_back(client);
+		}
+
+		for (int n = g_clients.size() - 1; n >= 0; n--)
+		{
+			if (FD_ISSET(g_clients[n], &fdRead))
+			{
+				if (-1 == RecvData(g_clients[n]))
+				{
+					auto iter = g_clients.begin() + n;
+					if (iter != g_clients.end())
+					{
+						g_clients.erase(iter);
+					}
+				}
+			}
 		}
 
 		return true;
@@ -154,8 +178,6 @@ public:
 		if (nLen <= 0)
 		{
 			printf("client exit\n");
-
-
 			return -1;
 		}
 
@@ -219,9 +241,7 @@ public:
 		std::vector<int>::iterator iter = g_clients.begin();
 		for (; iter != g_clients.end(); iter++)
 		{
-			LogoutResult logout;
-			logout.result = 999;
-			send(*iter, (char*)&logout, sizeof(LogoutResult), 0);
+			send(*iter, (char*)data, data->dataLength, 0);
 		}
 	}
 

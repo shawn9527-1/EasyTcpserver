@@ -86,7 +86,7 @@ public:
 		int nAddrLen = sizeof(sockaddr_in);
 		client = accept(_sock, (sockaddr *)&clientAddr, &nAddrLen);
 
-		printf("accept:%d, addr:%d, port:%d\n", client, clientAddr.sin_addr.S_un.S_addr)
+//		printf("accept:%d, addr:%d, port:%d\n", client, inet_a clientAddr.sin_addr.S_un.S_addr)
 
 		g_clients.push_back(client);
 
